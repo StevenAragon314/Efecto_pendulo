@@ -1,0 +1,259 @@
+---
+title: "ssss"
+author: "Isaac Valle Granados"
+date: "2024-06-25"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r}
+# Libraries
+library(tidyverse)
+library(car)
+```
+
+```{r}
+# general path
+path = gsub("code", "data/", getwd())
+```
+
+```{r}
+# Valores teoricos
+# type = c("Costo", "Medio", "Largo")
+# 
+valores_corta = c(0.77, 3.85, 7.7)
+valores_media = c(1.1, 5.5, 11)
+valores_larga = c(1.34, 6.7, 13.4)
+```
+
+
+```{r}
+# Data
+
+df = read.csv(paste0(path, "osilaciones.csv"), sep = ";")
+# colnames(df) = c("id", "long_hilo", "orden_oscilaciones", "tiempo", "hora_realizar")
+# I am adding the last version
+
+df[(df$long_hilo == "Corto") & (df$orden_oscilaciones == 1), "tiempo"] = abs(df[(df$long_hilo == "Corto") & (df$orden_oscilaciones == 1), "tiempo"] - valores_corta[1]) / valores_corta[1]
+df[(df$long_hilo == "Corto") & (df$orden_oscilaciones == 5), "tiempo"] = abs(df[(df$long_hilo == "Corto") & (df$orden_oscilaciones == 5), "tiempo"] - valores_corta[2]) / valores_corta[2]
+df[(df$long_hilo == "Corto") & (df$orden_oscilaciones == 10), "tiempo"] = abs(df[(df$long_hilo == "Corto") & (df$orden_oscilaciones == 10), "tiempo"] - valores_corta[3]) / valores_corta[3]
+
+df[(df$long_hilo == "Medio") & (df$orden_oscilaciones == 1), "tiempo"] = abs(df[(df$long_hilo == "Medio") & (df$orden_oscilaciones == 1), "tiempo"] - valores_media[1]) / valores_media[1]
+df[(df$long_hilo == "Medio") & (df$orden_oscilaciones == 5), "tiempo"] = abs(df[(df$long_hilo == "Medio") & (df$orden_oscilaciones == 5), "tiempo"] - valores_media[2]) / valores_media[2]
+df[(df$long_hilo == "Medio") & (df$orden_oscilaciones == 10), "tiempo"] = abs(df[(df$long_hilo == "Medio") & (df$orden_oscilaciones == 10), "tiempo"] - valores_media[3]) / valores_media[3]
+
+df[(df$long_hilo == "Largo") & (df$orden_oscilaciones == 1), "tiempo"] = abs(df[(df$long_hilo == "Largo") & (df$orden_oscilaciones == 1), "tiempo"] - valores_larga[1]) / valores_larga[1]
+df[(df$long_hilo == "Largo") & (df$orden_oscilaciones == 5), "tiempo"] = abs(df[(df$long_hilo == "Largo") & (df$orden_oscilaciones == 5), "tiempo"] - valores_larga[2]) / valores_larga[2]
+df[(df$long_hilo == "Largo") & (df$orden_oscilaciones == 10), "tiempo"] = abs(df[(df$long_hilo == "Largo") & (df$orden_oscilaciones == 10), "tiempo"] - valores_larga[3]) / valores_larga[3]
+```
+
+```{r}
+
+#save(df, file = "df.RData")
+#load('df.Rdata')
+
+
+# New data frame
+df$id = factor(df$id, levels = unique(df$id))
+df$long_hilo = factor(df$long_hilo, levels = unique(df$long_hilo))
+df$orden_oscilaciones = factor(df$orden_oscilaciones, levels = unique(df$orden_oscilaciones))
+df$hora_realizar = factor(df$hora_realizar, levels = unique(df$hora_realizar))
+str(df)
+
+table(df$longitud)
+
+table(df$long_hilo, df$orden_oscilaciones)
+```
+
+```{r}
+# Analisis de descriptivos 
+tapply(df$tiempo, list(df$long_hilo, df$orden_oscilaciones), mean)
+
+tapply(df$tiempo, list(df$long_hilo, df$orden_oscilaciones), var)
+
+tapply(df$tiempo, list(df$long_hilo, df$orden_oscilaciones), min)
+
+tapply(df$tiempo, list(df$long_hilo, df$orden_oscilaciones), max)
+
+a = cbind(tapply(df$tiempo, list(df$long_hilo, df$orden_oscilaciones), mean),
+          tapply(df$tiempo, list(df$long_hilo, df$orden_oscilaciones), var),
+          tapply(df$tiempo, list(df$long_hilo, df$orden_oscilaciones), min),
+          tapply(df$tiempo, list(df$long_hilo, df$orden_oscilaciones), max)
+)
+
+
+a = as.data.frame(a)
+```
+```{r}
+a = rbind(tapply(df$tiempo, list(df$long_hilo, df$orden_oscilaciones), mean),
+          tapply(df$tiempo, list(df$long_hilo, df$orden_oscilaciones), var),
+          tapply(df$tiempo, list(df$long_hilo, df$orden_oscilaciones), min),
+          tapply(df$tiempo, list(df$long_hilo, df$orden_oscilaciones), max)
+)
+
+row.names(a) = c("Medio.Mean", "Largo.Mean", "Corto.Mean",
+                 "Medio.Var", "Largo.Var", "Corto.Var",
+                 "Medio.Min", "Largo.Min", "Corto.Min",
+                 "Medio.Max", "Largo.Max", "Corto.Max"
+                 )
+colnames(a) = c("T1", "T5", "T10")
+
+knitr::kable(a)
+```
+
+
+```{r}
+library(Matrix)
+library(nlme)
+library(lme4)
+
+mod = lme(tiempo ~ long_hilo*orden_oscilaciones, random = ~1|id, data = df)
+
+anova(mod)
+#mod3 = lmer(log_t ~ long_hilo*orden_oscilaciones + (1|id), data = df)
+
+#Graficos cuantilos cuantilos
+qqPlot(residuals(mod))
+plot(fitted(mod), residuals(mod))
+bartlett.test(residuals(mod) ~ interaction(long_hilo, orden_oscilaciones), data = df)
+
+shapiro.test(residuals(mod))
+```
+
+```{r}
+anova(mod, test = "Chisq")
+```
+
+```{r}
+library(stats)
+shapiro.test(residuals(mod))
+```
+
+```{r}
+mod3 = lm(tiempo ~ id, data = df)
+t3 = df$tiempo - predict(mod3) + mean(df$tiempo)
+
+df$t3 = t3
+
+df$interaction_var = interaction(df$long_hilo, df$orden_oscilaciones)
+library(ggplot2)
+
+ggplot(df, aes(x = interaction_var, y = t3, fill = long_hilo)) +
+  geom_boxplot() +
+  labs(
+    x = "Longitud del hilo y Orden de oscilación",
+    y = "Distrución del error dentro del tratamiento",
+    fill = "Longitud del hilo"
+  ) +
+  scale_fill_brewer(palette = "Set2") +  # Paleta amigable para publicaciones
+  theme_minimal() +
+  theme(
+    legend.position = "right",
+    text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1)  # Mejora la legibilidad si hay muchas categorías
+  )
+# tapply(df$tiempo, list(df$long_hilo, df$orden_oscilaciones), mean)
+
+
+#comparar datos centrados y sin centrar
+boxplot(t3~long_hilo*orden_oscilaciones,data = df, main="Datos centrados")
+
+# boxplot(tiempo~long_hilo*orden_oscilaciones,data = df,main="Datos sin centrar")
+
+```
+
+
+
+```{r}
+#apreciar interaccion
+ggplot(df, aes(x = orden_oscilaciones, y = tiempo, group = long_hilo)) +
+  stat_summary(fun.y="mean", geom="line", aes(linetype = long_hilo))
+```
+
+```{r}
+
+# Crear el gráfico con puntos diferenciados por color
+ggplot(df, aes(x = orden_oscilaciones, y = tiempo, color = long_hilo)) +
+  stat_summary(fun = mean, geom = "point", size = 3) +
+  labs(
+    x = "Orden de Oscilaciones",
+    y = "Error de estimación",
+    color = "Longitud del Hilo"
+  ) +
+  scale_color_brewer(palette = "Set2") +  # Paleta de colores amigable para publicaciones
+  theme_minimal() +
+  theme(
+    legend.position = "right",
+    text = element_text(size = 12)  # Mejora la legibilidad si hay muchas categorías
+  )
+
+```
+
+```{r}
+anova(mod)
+aov(mod,data = df)
+
+```
+```{r}
+mod5=lm(tiempo~long_hilo*orden_oscilaciones,data = df)#modelo sin centrar
+mod4= lm(t3~long_hilo*orden_oscilaciones,data = df)#modelo centrado
+#comprobar el efecto de las personas
+sct5=sum(anova(mod5)[,2] )
+sct4=sum(anova(mod4)[,2])
+c(sct5,sct4)
+
+```
+
+```{r}
+bartlett.test(residuals(mod)~interaction(df$long_hilo, df$orden_oscilaciones))
+bartlett.test(residuals(mod4)~interaction(df$long_hilo, df$orden_oscilaciones))
+plot(fitted.values(mod),residuals(mod))
+```
+
+```{r}
+library(emmeans)
+mod1 = lm(tiempo ~ long_hilo*orden_oscilaciones, data = df)
+(em1 = emmeans(mod,pairwise~long_hilo|orden_oscilaciones,adjust="bonferroni"))
+
+
+```
+
+```{r}
+table(df$long_hilo)
+
+m = tapply(df$tiempo, df$long_hilo, mean)
+
+d12 = m[1] - m[2]
+d13 = m[1] - m[3]
+d23 = m[2] - m[3]
+
+d = c(d12, d13, d23)
+CMRes = anova(mod1)[4, 3]
+ee = (2 * CMRes / 30)
+t = qt(0.95, 58)
+
+Lim = d - t * ee; Lim
+
+q = d/ee
+p = ptukey(q*sqrt(2),3, 58,lower.tail = F); names(p)=c("d12", "d13", "d23"); p
+```
+
+```{r}
+res = residuals(mod)
+x = 1:length(res)
+
+seq_data = data.frame(x, res)
+
+ggplot(seq_data, aes(x = x, y = res)) +
+  geom_point() +
+  labs(x = "", y = "Residuales")
+
+library(car)
+qqPlot(residuals(mod))
+```
+
+
+
+
+
